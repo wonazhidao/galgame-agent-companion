@@ -82,6 +82,17 @@ class NativeProtocol(unittest.TestCase):
 
 
 class FastDialogueDelivery(unittest.TestCase):
+    def test_status_update_while_previous_state_is_being_read(self):
+        import companion_log as log
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "status.json"
+            log.atomic_json(path, {"seq": 1})
+            with path.open("rb") as reader:
+                with patch.object(log.time, "sleep", side_effect=lambda _: reader.close()) as retry:
+                    log.atomic_json(path, {"seq": 2})
+            retry.assert_called_once()
+            self.assertEqual(log.read_json(path, {}), {"seq": 2})
+
     def test_only_adjacent_pixel_identical_frames_share_a_tile(self):
         import companion_log as log
         from scene_replay import build_montage

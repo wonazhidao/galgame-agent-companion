@@ -64,7 +64,7 @@ class CompanionMCP(unittest.TestCase):
 
                 try:
                     started = (await call("start_game", language="en-GB")).structuredContent
-                    self.assertEqual(started["state"], "等待游戏")
+                    self.assertEqual(started["state"], "等待游戏", started)
                     self.assertIsNone(started["last_frame_at"])
                     self.assertIsNone((await call("read_game", timeout=1)).structuredContent["batch"])
                     with simulated_game(work, game) as (control, pid_file):

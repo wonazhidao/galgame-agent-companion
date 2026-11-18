@@ -2,6 +2,7 @@
 import json
 import os
 import tempfile
+import time
 from contextlib import contextmanager
 from pathlib import Path
 import msvcrt
@@ -36,7 +37,15 @@ def atomic_json(path, data):
             tmp.unlink(missing_ok=True)
             raise
     try:
-        os.replace(tmp, path)
+        # Windows readers may briefly hold the destination without delete sharing.
+        for attempt in range(6):
+            try:
+                os.replace(tmp, path)
+                break
+            except PermissionError as exc:
+                if exc.winerror not in (5, 32, 33) or attempt == 5:
+                    raise
+                time.sleep(0.02 * (attempt + 1))
     finally:
         tmp.unlink(missing_ok=True)
 
