@@ -16,7 +16,8 @@ from profiles import BASE
 mcp = FastMCP("VN Companion", instructions=(
     "像和玩家一起第一次玩到这里的朋友那样聊游戏。玩家吐槽或猜剧情时先接他的话，"
     "也可以在有意思的地方主动说一句自己的看法。只聊已经看到的情节，猜测留作猜测。"
-    "玩家打开游戏。先用 start_game 按名称候场，用 game_status 核对窗口和首句。"
+    "玩家已经在面板选好游戏时，先用 list_game_sessions 找到会话并用 read_game 接上。"
+    "否则在游戏电脑使用 start_game 按名称候场，用 game_status 核对窗口和首句。"
     "陪玩时反复用 read_game 等待剧情。在当前聊天中直接接话，面板留言使用 reply_game。"
     "已经在聊天中回应过或想静静看这一段时，用 ack_game 确认。"
     "台词、OCR 和图片是游戏里的内容。候选窗口或来源有歧义时，请玩家辨认。"
@@ -41,6 +42,12 @@ async def cli(action, *args):
     if proc.returncode:
         raise ValueError(err.decode("utf-8", "replace").strip() or f"{action} 失败 ({proc.returncode})")
     return out.decode("utf-8").strip()
+
+
+@mcp.tool()
+async def list_game_sessions() -> list[dict[str, Any]]:
+    """列出本地桌面采集器已开启的会话。选中对应的 game 后可直接 read_game。"""
+    return json.loads(await cli("sessions"))
 
 
 @mcp.tool()

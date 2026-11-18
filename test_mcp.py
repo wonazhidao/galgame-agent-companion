@@ -36,7 +36,7 @@ class CompanionMCP(unittest.TestCase):
                 tools = await client.list_tools()
                 self.assertEqual({t.name for t in tools.tools}, {
                     "start_game", "game_status", "read_game", "reply_game", "ack_game",
-                    "select_game", "review_game", "stop_game"})
+                    "select_game", "review_game", "stop_game", "list_game_sessions"})
 
                 async def call(name, **kwargs):
                     result = await client.call_tool(name, {"game": game, **kwargs})
@@ -66,6 +66,8 @@ class CompanionMCP(unittest.TestCase):
                     started = (await call("start_game", language="en-GB")).structuredContent
                     self.assertEqual(started["state"], "等待游戏", started)
                     self.assertIsNone(started["last_frame_at"])
+                    sessions = await client.call_tool("list_game_sessions", {})
+                    self.assertIn(game, [s["game"] for s in sessions.structuredContent["result"]])
                     self.assertIsNone((await call("read_game", timeout=1)).structuredContent["batch"])
                     with simulated_game(work, game) as (control, pid_file):
                         state = await see("The door opens slowly")

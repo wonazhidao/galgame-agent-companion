@@ -8,6 +8,39 @@ from ctypes import wintypes
 from game_window import WNDENUMPROC, user32
 from profiles import norm
 
+NON_GAME_APPS = {"chrome", "msedge", "firefox", "codex", "explorer", "windowsterminal",
+                 "powershell", "pwsh", "cmd", "textractor", "code", "steam"}
+
+
+def desktop_context():
+    """Identify the caller's desktop without capturing any window content."""
+    user32.GetProcessWindowStation.restype = wintypes.HANDLE
+    user32.GetThreadDesktop.restype = wintypes.HANDLE
+    user32.OpenInputDesktop.restype = wintypes.HANDLE
+    user32.GetUserObjectInformationW.argtypes = [wintypes.HANDLE, wintypes.INT, wintypes.LPVOID,
+                                                 wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+
+    def name(handle):
+        buf = ctypes.create_unicode_buffer(256)
+        if handle and user32.GetUserObjectInformationW(handle, 2, buf, ctypes.sizeof(buf), None):
+            return buf.value
+        return ""
+
+    station = name(user32.GetProcessWindowStation())
+    current = name(user32.GetThreadDesktop(ctypes.windll.kernel32.GetCurrentThreadId()))
+    handle = user32.OpenInputDesktop(0, False, 1)  # DESKTOP_READOBJECTS
+    try:
+        active = name(handle)
+    finally:
+        if handle:
+            user32.CloseDesktop(wintypes.HANDLE(handle))
+    same = None
+    if station and station.lower() != "winsta0":
+        same = False
+    elif current and active:
+        same = current.casefold() == active.casefold()
+    return dict(station=station, desktop=current, input_desktop=active, on_input_desktop=same)
+
 
 @dataclass(frozen=True)
 class Window:
@@ -53,8 +86,7 @@ def matches(profile, available):
             if os.path.normcase(str(path)) == os.path.normcase(expected):
                 ranked.append((4, win))
             continue
-        if path.stem.casefold() in {"chrome","msedge","firefox","codex","explorer","windowsterminal",
-                                    "powershell","pwsh","cmd","textractor","code","steam"}:
+        if path.stem.casefold() in NON_GAME_APPS:
             continue
         title, stem = norm(win.title), norm(path.stem)
         title_hit = any(a == title or len(a) >= 2 and a in title for a in aliases)

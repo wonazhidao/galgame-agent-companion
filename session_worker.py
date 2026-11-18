@@ -79,7 +79,7 @@ class Worker:
         log.atomic_json(log.LOG_DIR / "status.json", dict(
             run=self.run_id, pid=os.getpid(), game=self.game, state=self.state, updated=time.time(),
             target={"pid":t.pid,"hwnd":t.hwnd,"title":t.title,"exe":t.exe} if t else None,
-            windows=[dict(hwnd=w.hwnd, title=w.title, exe=w.exe) for w in self.options],
+            windows=[dict(hwnd=w.hwnd, pid=w.pid, title=w.title, exe=w.exe) for w in self.options],
             captured=self.seq, confirmed=log.load_cursor()["text_seq"], first_line=self.first_line,
             last_line=self.last_line, source=self.last_source, stream=self.selector.selected,
             candidates=self.selector.samples(), native=self.native_info, ocr=self.ocr_info,
@@ -191,7 +191,7 @@ class Worker:
             self.native_info = "已按标题匹配；可用 window 确认此程序以启用提取器"
 
     def matching_windows(self):
-        background = self.profile["mode"] == "history" or (
+        background = self.chosen_window is not None or self.profile["mode"] == "history" or (
             self.profile["mode"] == "auto" and self.profile["decoder"] == "subahibi")
         return matches(self.profile, windows(include_minimized=background))
 
@@ -202,9 +202,12 @@ class Worker:
             return
         if self.target:
             self.disconnect()
-        chosen = next((w for w in self.options if w.hwnd == self.chosen_window), None)
-        if not chosen and len(self.options)==1:
-            chosen = self.options[0]
+        if self.chosen_window is not None:
+            chosen = next((w for w in self.options if (w.hwnd, w.pid) == self.chosen_window), None)
+        else:
+            title = self.profile.get("window_title")
+            candidates = [w for w in self.options if not title or w.title == title]
+            chosen = candidates[0] if len(candidates) == 1 else None
         if chosen:
             self.connect(chosen)
         else:
@@ -243,8 +246,8 @@ class Worker:
                     if win is None:
                         raise ValueError("窗口已变化，请再查看 status")
                     self.disconnect()
-                    self.chosen_window = win.hwnd
-                    self.remember(exe=win.exe)
+                    self.chosen_window = (win.hwnd, win.pid)
+                    self.remember(exe=win.exe, window_title=win.title)
                     self.scan()
                 elif action == "note":
                     if not arg or not arg.strip():

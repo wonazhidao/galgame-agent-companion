@@ -182,6 +182,63 @@ r.mainloop()
 
 
 class DesktopSession(unittest.TestCase):
+    def test_panel_selection_reaches_second_terminal_and_stays_on_selected_window(self):
+        import tkinter as tk
+        import profiles
+        from panel import Panel
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            home = work / "sessions"
+            first, other = work / "first", work / "other"
+            first.mkdir()
+            other.mkdir()
+            title = "Window selection QA " + str(os.getpid())
+            with patch.dict(os.environ, VNCOMPANION_HOME=str(home)), patch.object(profiles, "HOME", home):
+                def cli(*args):
+                    return subprocess.check_output([str(BASE / "vn.cmd"), *args], encoding="utf8", timeout=12)
+
+                root = tk.Tk()
+                root.withdraw()
+                panel = Panel(root)
+
+                def until(check):
+                    end = time.monotonic() + 16
+                    while time.monotonic() < end:
+                        root.update()
+                        if check():
+                            return
+                        time.sleep(0.1)
+                    self.fail(f"{panel.status.get()} · {panel.notice.get()}")
+
+                session = folder(title)
+                session.mkdir(parents=True)
+                (session / "profile.json").write_text(json.dumps(dict(mode="ocr", language="en-GB")))
+                try:
+                    with simulated_game(other, title + " B") as (other_text, other_pid):
+                        other_text.write_text("Another game entirely.")
+                        with simulated_game(first, title) as (_, pid_file):
+                            until(lambda: pid_file.exists() and other_pid.exists())
+                            panel.refresh_games()
+                            label = next(k for k, v in panel.game_options.items() if v[0] == title)
+                            panel.field.current(list(panel.field["values"]).index(label))
+                            panel.field.event_generate("<<ComboboxSelected>>")
+                            root.update()
+                            self.assertEqual(panel.game.get(), title)
+                            panel.start_button.invoke()
+                            until(lambda: not panel.busy and "The door opens slowly" in panel.line.get())
+                            self.assertEqual([s["game"] for s in json.loads(cli("sessions"))], [title])
+                            state = json.loads(cli("status", title))
+                            self.assertEqual(state["target"]["hwnd"], panel.window_id)
+                            self.assertEqual(state["target"]["pid"], int(pid_file.read_text()))
+                            self.assertEqual(json.loads(cli("start", title))["run"], state["run"])
+                            self.assertIn(panel.line.get(), cli("read", title))
+                        until(lambda: "等待选择窗口" in panel.status.get())
+                        self.assertIsNone(json.loads(cli("status", title))["target"])
+                        self.assertNotIn("Another game entirely", cli("read", title))
+                finally:
+                    cli("stop", title)
+                    root.destroy()
+
     def test_optional_panel_controls_same_session(self):
         import tkinter as tk
         from panel import Panel
