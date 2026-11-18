@@ -1,0 +1,9 @@
+.venv/
+sessions/
+tools/Textractor/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+*.log
+*.sud

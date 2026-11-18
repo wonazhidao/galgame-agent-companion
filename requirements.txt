@@ -1,0 +1,7 @@
+Pillow>=10
+psutil>=5.9
+winrt-Windows.Media.Ocr
+winrt-Windows.Graphics.Imaging
+winrt-Windows.Storage.Streams
+winrt-Windows.Globalization
+mcp>=1.12,<2
